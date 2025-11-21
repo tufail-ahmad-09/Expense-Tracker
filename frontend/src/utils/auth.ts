@@ -12,6 +12,7 @@ import axios, { AxiosError } from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8006';
 
 const TOKEN_KEY = 'expense_token';
+const USER_KEY = 'expense_user';
 
 /**
  * Auth API endpoints
@@ -61,6 +62,28 @@ export const setAuthToken = (token: string): void => {
 };
 
 /**
+ * Store user data in localStorage
+ */
+export const setUserData = (user: AuthUser): void => {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+};
+
+/**
+ * Get user data from localStorage
+ */
+export const getUserData = (): AuthUser | null => {
+  const userData = localStorage.getItem(USER_KEY);
+  if (userData) {
+    try {
+      return JSON.parse(userData);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};
+
+/**
  * Retrieve auth token from localStorage
  * TODO: If using httpOnly cookies, modify to check cookie existence
  */
@@ -73,6 +96,7 @@ export const getAuthToken = (): string | null => {
  */
 export const removeAuthToken = (): void => {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 };
 
 /**
@@ -101,6 +125,11 @@ export const signup = async (data: SignupRequest): Promise<AuthResponse> => {
       setAuthToken(response.data.token);
     }
 
+    // Store user data
+    if (response.data.user) {
+      setUserData(response.data.user);
+    }
+
     return response.data;
   } catch (error) {
     throw handleAuthError(error);
@@ -124,6 +153,11 @@ export const login = async (data: LoginRequest): Promise<AuthResponse> => {
     // If token is returned in response, store it
     if (response.data.token) {
       setAuthToken(response.data.token);
+    }
+
+    // Store user data
+    if (response.data.user) {
+      setUserData(response.data.user);
     }
 
     return response.data;

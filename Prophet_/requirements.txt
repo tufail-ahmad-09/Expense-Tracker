@@ -7,3 +7,5 @@ uvicorn
 scikit-learn
 python-multipart
 prophet
+email-validator
+bcrypt

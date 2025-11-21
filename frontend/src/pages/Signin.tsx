@@ -182,26 +182,26 @@ export const Signin: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 px-4 py-12 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 px-4 py-12 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
       <div className="max-w-md w-full relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl mb-4 shadow-2xl">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-400 to-cyan-400 rounded-2xl mb-4 shadow-2xl">
+            <svg className="w-8 h-8 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
             </svg>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">Welcome Back</h1>
-          <p className="text-white/90 text-lg">Sign in to access your account</p>
+          <p className="text-slate-300 text-lg">Sign in to access your account</p>
         </div>
 
-        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 border border-slate-200">
           {apiError && (
             <FormError
               message={apiError.message}
@@ -245,7 +245,7 @@ export const Signin: React.FC = () => {
                   type="checkbox"
                   checked={formData.remember}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                  className="h-4 w-4 text-violet-600 border-gray-300 rounded focus:ring-2 focus:ring-violet-500 transition-all cursor-pointer"
                 />
                 <label htmlFor="remember" className="ml-2 text-sm text-gray-700 cursor-pointer group-hover:text-gray-900 transition-colors">
                   Remember me
@@ -254,7 +254,7 @@ export const Signin: React.FC = () => {
 
               <button
                 type="button"
-                className="text-sm text-blue-600 hover:text-blue-700 focus:outline-none focus:underline font-medium transition-colors"
+                className="text-sm text-violet-600 hover:text-violet-700 focus:outline-none focus:underline font-medium transition-colors"
                 onClick={() => alert('Forgot password functionality - TODO: Implement password reset flow')}
               >
                 Forgot password?
@@ -265,13 +265,13 @@ export const Signin: React.FC = () => {
               type="submit"
               disabled={isSubmitting || !isFormValid()}
               className={`
-                w-full py-3 px-4 rounded-xl font-semibold text-white text-lg
+                w-full py-3.5 px-4 rounded-xl font-bold text-white text-lg
                 transition-all duration-300 transform
-                focus:outline-none focus:ring-4 focus:ring-blue-300
+                focus:outline-none focus:ring-4 focus:ring-violet-300
                 ${
                   isSubmitting || !isFormValid()
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl'
+                    : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl'
                 }
               `}
             >
@@ -321,7 +321,7 @@ export const Signin: React.FC = () => {
             </div>
             <Link
               to="/signup"
-              className="mt-4 inline-block font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus:underline transition-colors"
+              className="mt-4 inline-block font-semibold text-violet-600 hover:text-violet-700 focus:outline-none focus:underline transition-colors"
             >
               Create account here →
             </Link>

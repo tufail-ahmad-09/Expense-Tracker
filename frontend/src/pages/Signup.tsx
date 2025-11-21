@@ -333,13 +333,13 @@ export const Signup: React.FC = () => {
               type="submit"
               disabled={isSubmitting || !isFormValid()}
               className={`
-                w-full py-3 px-4 rounded-xl font-semibold text-white text-lg
+                w-full py-3.5 px-4 rounded-xl font-bold text-white text-lg
                 transition-all duration-300 transform
-                focus:outline-none focus:ring-4 focus:ring-purple-300
+                focus:outline-none focus:ring-4 focus:ring-violet-300
                 ${
                   isSubmitting || !isFormValid()
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl'
+                    : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl'
                 }
               `}
             >
@@ -389,7 +389,7 @@ export const Signup: React.FC = () => {
             </div>
             <Link
               to="/signin"
-              className="mt-4 inline-block font-semibold text-purple-600 hover:text-purple-700 focus:outline-none focus:underline transition-colors"
+              className="mt-4 inline-block font-semibold text-violet-600 hover:text-violet-700 focus:outline-none focus:underline transition-colors"
             >
               Sign in here →
             </Link>

@@ -7,8 +7,13 @@ from io import StringIO
 from prophet import Prophet
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 import secrets
+from database import (
+    create_user, authenticate_user, create_budget, get_user_budget,
+    create_expense, get_user_expenses, get_expense_stats
+)
+from budget_utils import distribute_budget
 
 
 
@@ -36,8 +41,50 @@ class AuthResponse(BaseModel):
     user: UserResponse
     token: str
 
-# In-memory user storage (replace with database in production)
-users_db = {}
+class BudgetRequest(BaseModel):
+    user_id: str
+    budget_amount: float
+    period: str  # Format: 'YYYY-MM'
+    use_forecast: Optional[bool] = True
+    preferences: Optional[dict] = None  # savings_percent, min_reserve
+
+class CategoryAllocation(BaseModel):
+    category: str
+    amount: float
+    percentage: float
+    reason: str
+
+class BudgetResponse(BaseModel):
+    budget_amount: float
+    period: str
+    allocations: List[CategoryAllocation]
+
+class SetBudgetRequest(BaseModel):
+    user_id: str
+    amount: float
+    period: str  # Format: 'YYYY-MM'
+
+class AddExpenseRequest(BaseModel):
+    user_id: str
+    category: str
+    amount: float
+    description: str
+    date: str  # Format: 'YYYY-MM-DD'
+
+class ExpenseResponse(BaseModel):
+    id: int
+    user_id: str
+    category: str
+    amount: float
+    description: str
+    date: str
+
+class ExpenseStatsResponse(BaseModel):
+    today: float
+    week: float
+    month: float
+    largest: float
+    by_category: dict
 
 app = FastAPI()
 app.add_middleware(
@@ -85,70 +132,63 @@ def load_and_preprocess_data(file_path):
 @app.post("/api/auth/signup", response_model=AuthResponse, status_code=201)
 async def signup(request: SignupRequest):
     """
-    Register a new user
-    TODO: Add password hashing, database storage, proper validation
+    Register a new user with database storage and password hashing
     """
-    # Check if user already exists
-    if request.email in users_db:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": "Email already exists", "errors": {"email": "This email is already registered"}}
+    try:
+        # Create user in database (with hashed password)
+        user_data = create_user(
+            name=request.name,
+            email=request.email,
+            password=request.password,
+            phone=request.phone
+        )
+        
+        # Generate token (in production, use JWT with expiration)
+        token = secrets.token_urlsafe(32)
+        
+        return AuthResponse(
+            user=UserResponse(
+                id=user_data['id'],
+                name=user_data['name'],
+                email=user_data['email']
+            ),
+            token=token
         )
     
-    # Create user ID
-    user_id = secrets.token_urlsafe(16)
-    
-    # Store user (in production, hash password and use database)
-    users_db[request.email] = {
-        "id": user_id,
-        "name": request.name,
-        "email": request.email,
-        "password": request.password,  # TODO: Hash this!
-        "phone": request.phone
-    }
-    
-    # Generate token (in production, use JWT)
-    token = secrets.token_urlsafe(32)
-    
-    return AuthResponse(
-        user=UserResponse(
-            id=user_id,
-            name=request.name,
-            email=request.email
-        ),
-        token=token
-    )
+    except ValueError as e:
+        # Email already exists
+        raise HTTPException(
+            status_code=400,
+            detail={"message": str(e), "errors": {"email": "This email is already registered"}}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "An error occurred during registration"}
+        )
 
 @app.post("/api/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
     """
-    Login existing user
-    TODO: Add password verification, JWT tokens
+    Login existing user with database verification
     """
-    # Check if user exists
-    if request.email not in users_db:
+    # Authenticate user
+    user_data = authenticate_user(request.email, request.password)
+    
+    if not user_data:
         raise HTTPException(
             status_code=401,
             detail={"message": "Invalid credentials"}
         )
     
-    user = users_db[request.email]
-    
-    # Verify password (in production, use proper password verification)
-    if user["password"] != request.password:
-        raise HTTPException(
-            status_code=401,
-            detail={"message": "Invalid credentials"}
-        )
-    
-    # Generate token (in production, use JWT)
+    # Generate token (in production, use JWT with expiration)
     token = secrets.token_urlsafe(32)
     
     return AuthResponse(
         user=UserResponse(
-            id=user["id"],
-            name=user["name"],
-            email=user["email"]
+            id=user_data['id'],
+            name=user_data['name'],
+            email=user_data['email']
         ),
         token=token
     )
@@ -183,6 +223,122 @@ async def upload_csv(file: UploadFile = File(...)):
     
     response = {"predictions": predictions.to_dict(orient='records')}
     return JSONResponse(content=response)
+
+@app.post("/api/budget/distribute", response_model=BudgetResponse)
+async def distribute_budget_endpoint(request: BudgetRequest):
+    """
+    Smart budget distribution using Prophet forecasting and historical data
+    """
+    try:
+        # Extract preferences
+        preferences = request.preferences or {}
+        savings_percent = preferences.get('savings_percent', 10.0)
+        min_reserve = preferences.get('min_reserve', 500.0)
+        
+        # Call budget distribution logic
+        result = distribute_budget(
+            user_id=request.user_id,
+            budget_amount=request.budget_amount,
+            period=request.period,
+            use_forecast=request.use_forecast,
+            savings_percent=savings_percent,
+            min_reserve=min_reserve
+        )
+        
+        return BudgetResponse(**result)
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Budget distribution failed: {str(e)}"}
+        )
+
+@app.post("/api/budget/set")
+async def set_budget_endpoint(request: SetBudgetRequest):
+    """
+    Set user's budget amount
+    """
+    try:
+        user_id = int(request.user_id)
+        budget = create_budget(user_id, request.amount, request.period)
+        return {"success": True, "budget": budget}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to set budget: {str(e)}"}
+        )
+
+@app.get("/api/budget/get/{user_id}/{period}")
+async def get_budget_endpoint(user_id: str, period: str):
+    """
+    Get user's budget for a period
+    """
+    try:
+        budget = get_user_budget(int(user_id), period)
+        if not budget:
+            return {"success": False, "budget": None}
+        return {"success": True, "budget": budget}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to get budget: {str(e)}"}
+        )
+
+@app.post("/api/expenses/add", response_model=ExpenseResponse)
+async def add_expense_endpoint(request: AddExpenseRequest):
+    """
+    Add a new expense
+    """
+    try:
+        user_id = int(request.user_id)
+        expense = create_expense(
+            user_id=user_id,
+            category=request.category,
+            amount=request.amount,
+            description=request.description,
+            date=request.date
+        )
+        return ExpenseResponse(
+            id=expense['id'],
+            user_id=str(expense['user_id']),
+            category=expense['category'],
+            amount=expense['amount'],
+            description=expense['description'],
+            date=expense['date']
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to add expense: {str(e)}"}
+        )
+
+@app.get("/api/expenses/list/{user_id}")
+async def list_expenses_endpoint(user_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """
+    Get user's expenses
+    """
+    try:
+        expenses = get_user_expenses(int(user_id), start_date, end_date)
+        return {"success": True, "expenses": expenses}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to get expenses: {str(e)}"}
+        )
+
+@app.get("/api/expenses/stats/{user_id}", response_model=ExpenseStatsResponse)
+async def get_expense_stats_endpoint(user_id: str):
+    """
+    Get expense statistics
+    """
+    try:
+        stats = get_expense_stats(int(user_id))
+        return ExpenseStatsResponse(**stats)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to get stats: {str(e)}"}
+        )
 
 if __name__ == "__main__":
     import uvicorn

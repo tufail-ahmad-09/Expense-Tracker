@@ -4,6 +4,8 @@ import { Home } from './pages/Home';
 import { Signup } from './pages/Signup';
 import { Signin } from './pages/Signin';
 import { Dashboard } from './pages/Dashboard';
+import Expenses from './pages/Expenses';
+import Analytics from './pages/Analytics';
 import { isAuthenticated } from './utils/auth';
 
 // Protected Route component
@@ -22,6 +24,22 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/expenses"
+        element={
+          <ProtectedRoute>
+            <Expenses />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics />
           </ProtectedRoute>
         }
       />

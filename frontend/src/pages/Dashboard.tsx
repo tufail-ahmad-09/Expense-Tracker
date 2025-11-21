@@ -5,14 +5,13 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
+import { AlertTriangle, TrendingUp, Zap, Upload, Clock, BarChart3 } from 'lucide-react';
+import Sidebar from '../components/Sidebar';
 import FileUploader from '../components/FileUploader';
 import ResultsPanel from '../components/ResultsPanel';
 import InfoPanel from '../components/InfoPanel';
 import { uploadCSV } from '../api/forecastApi';
-import { logout, getAuthToken } from '../utils/auth';
+import { getAuthToken } from '../utils/auth';
 import { Prediction, AppStatus } from '../types';
 
 export const Dashboard: React.FC = () => {
@@ -43,56 +42,105 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/signin');
-  };
-
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <Header />
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <Sidebar />
       
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-800">
-                Time Series Forecasting
-              </h1>
-              <p className="mt-2 text-lg text-gray-600">
-                Upload your data to generate accurate predictions using Prophet
-              </p>
+      <main className="flex-1 lg:ml-64 p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header Section */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="bg-gradient-to-br from-blue-500 to-cyan-500 p-3 rounded-2xl shadow-lg shadow-blue-500/30">
+                <TrendingUp className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                  Time Series Forecasting
+                </h1>
+                <p className="text-slate-600 flex items-center gap-2 mt-1">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  Powered by Prophet ML
+                </p>
+              </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-            >
-              Logout
-            </button>
+            <p className="text-lg text-slate-600 ml-16">
+              Upload your CSV data and let AI predict future trends with precision
+            </p>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="md:col-span-1">
-              <InfoPanel />
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-200 hover:shadow-2xl transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-violet-500 to-purple-500 p-4 rounded-xl shadow-lg shadow-purple-500/30">
+                  <Upload className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Quick Upload</p>
+                  <p className="text-2xl font-bold text-slate-800">CSV Files</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-200 hover:shadow-2xl transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-4 rounded-xl shadow-lg shadow-emerald-500/30">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Processing</p>
+                  <p className="text-2xl font-bold text-slate-800">Real-time</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-200 hover:shadow-2xl transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-orange-500 to-red-500 p-4 rounded-xl shadow-lg shadow-orange-500/30">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Accuracy</p>
+                  <p className="text-2xl font-bold text-slate-800">High</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Info Panel */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <InfoPanel />
+              </div>
             </div>
             
-            <div className="md:col-span-2">
-              <FileUploader 
-                onFileSelect={handleFileUpload} 
-                isUploading={status === 'uploading'} 
-              />
+            {/* Upload & Results Panel */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Upload Section */}
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <FileUploader 
+                  onFileSelect={handleFileUpload} 
+                  isUploading={status === 'uploading'} 
+                />
+              </div>
               
+              {/* Error Display */}
               {status === 'error' && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-md">
-                  <div className="flex">
+                <div className="bg-gradient-to-r from-red-50 to-rose-50 border-l-4 border-red-500 rounded-2xl p-6 shadow-xl">
+                  <div className="flex gap-4">
                     <div className="flex-shrink-0">
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                      <div className="bg-red-500 p-2 rounded-lg">
+                        <AlertTriangle className="h-6 w-6 text-white" />
+                      </div>
                     </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">
-                        Error processing your file
+                    <div>
+                      <h3 className="text-lg font-bold text-red-800 mb-1">
+                        Error Processing File
                       </h3>
-                      <p className="text-sm text-red-700 mt-1">
+                      <p className="text-red-700">
                         {error || 'Please check your file format and try again.'}
                       </p>
                     </div>
@@ -100,13 +148,16 @@ export const Dashboard: React.FC = () => {
                 </div>
               )}
               
-              {status === 'success' && <ResultsPanel predictions={predictions} />}
+              {/* Results Display */}
+              {status === 'success' && (
+                <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                  <ResultsPanel predictions={predictions} />
+                </div>
+              )}
             </div>
           </div>
         </div>
       </main>
-      
-      <Footer />
     </div>
   );
 };
