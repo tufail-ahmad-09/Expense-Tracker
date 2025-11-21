@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, DollarSign, Download, Calendar, BarChart3 } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { TrendingUp, DollarSign, Download, Calendar, BarChart3, Zap, AlertCircle, Lightbulb, TrendingDown } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { getExpenses, getExpenseStats } from '../api/expenseApi';
+import { getSpendingForecast, getCategoryForecast, getAnomalies, getTrends } from '../api/forecastApi';
 
 export default function Analytics() {
   const userId = localStorage.getItem('expense_user') ? JSON.parse(localStorage.getItem('expense_user')!).id || '1' : '1';
@@ -13,12 +14,20 @@ export default function Analytics() {
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // New prediction states
+  const [forecast, setForecast] = useState<any>(null);
+  const [categoryForecast, setCategoryForecast] = useState<any>(null);
+  const [anomalies, setAnomalies] = useState<any[]>([]);
+  const [insights, setInsights] = useState<any[]>([]);
+  const [forecastDays, setForecastDays] = useState(30);
 
   const COLORS = ['#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#84cc16'];
 
   useEffect(() => {
     loadAnalyticsData();
-  }, []);
+    loadPredictions();
+  }, [forecastDays]);
 
   const loadAnalyticsData = async () => {
     try {
@@ -51,6 +60,32 @@ export default function Analytics() {
       console.error('Failed to load analytics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPredictions = async () => {
+    try {
+      const [forecastData, catForecastData, anomalyData, trendData] = await Promise.all([
+        getSpendingForecast(userId, forecastDays).catch(() => null),
+        getCategoryForecast(userId, forecastDays).catch(() => null),
+        getAnomalies(userId).catch(() => null),
+        getTrends(userId).catch(() => null)
+      ]);
+
+      if (forecastData?.success) {
+        setForecast(forecastData);
+      }
+      if (catForecastData?.success) {
+        setCategoryForecast(catForecastData);
+      }
+      if (anomalyData?.success) {
+        setAnomalies(anomalyData.anomalies || []);
+      }
+      if (trendData?.success) {
+        setInsights(trendData.insights || []);
+      }
+    } catch (error) {
+      console.error('Failed to load predictions:', error);
     }
   };
 
@@ -267,7 +302,7 @@ export default function Analytics() {
           </div>
 
           {/* Monthly Trend - Line Chart */}
-          <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-200 mb-8">
             <h3 className="text-xl font-bold text-slate-900 mb-6">6-Month Trend</h3>
             {monthlyTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height={350}>
@@ -294,6 +329,207 @@ export default function Analytics() {
               </div>
             )}
           </div>
+
+          {/* Prophet AI Predictions Section */}
+          {forecast && forecast.success && (
+            <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-3xl p-8 shadow-2xl border-2 border-violet-200 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-violet-600 to-purple-600 p-2.5 rounded-xl">
+                    <Zap className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-900">Prophet AI Forecast</h3>
+                    <p className="text-slate-600">Next {forecastDays} days spending prediction</p>
+                  </div>
+                </div>
+                <select
+                  value={forecastDays}
+                  onChange={(e) => setForecastDays(Number(e.target.value))}
+                  className="px-4 py-2 bg-white border-2 border-violet-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:border-violet-500"
+                >
+                  <option value={7}>7 Days</option>
+                  <option value={14}>14 Days</option>
+                  <option value={30}>30 Days</option>
+                  <option value={60}>60 Days</option>
+                </select>
+              </div>
+
+              {/* Forecast Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
+                  <p className="text-sm font-medium text-slate-600 mb-2">Predicted Total</p>
+                  <p className="text-3xl font-bold text-violet-600">₹{forecast.summary.total_predicted.toFixed(2)}</p>
+                  <p className="text-xs text-slate-500 mt-1">For next {forecastDays} days</p>
+                </div>
+                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
+                  <p className="text-sm font-medium text-slate-600 mb-2">Daily Average</p>
+                  <p className="text-3xl font-bold text-purple-600">₹{forecast.summary.daily_average.toFixed(2)}</p>
+                  <p className="text-xs text-slate-500 mt-1">Expected per day</p>
+                </div>
+                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
+                  <p className="text-sm font-medium text-slate-600 mb-2">Confidence</p>
+                  <p className="text-3xl font-bold text-emerald-600 capitalize">{forecast.summary.confidence}</p>
+                  <p className="text-xs text-slate-500 mt-1">Prediction accuracy</p>
+                </div>
+              </div>
+
+              {/* Forecast Chart */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h4 className="text-lg font-bold text-slate-900 mb-4">Daily Forecast with Confidence Interval</h4>
+                <ResponsiveContainer width="100%" height={350}>
+                  <AreaChart data={forecast.forecast}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value: any) => `₹${value.toFixed(2)}`} />
+                    <Legend />
+                    <Area 
+                      type="monotone" 
+                      dataKey="upper" 
+                      stackId="1"
+                      stroke="#c4b5fd" 
+                      fill="#c4b5fd" 
+                      fillOpacity={0.3}
+                      name="Upper Bound"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="predicted" 
+                      stackId="2"
+                      stroke="#8b5cf6" 
+                      fill="#8b5cf6" 
+                      strokeWidth={3}
+                      name="Predicted"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="lower" 
+                      stackId="1"
+                      stroke="#ddd6fe" 
+                      fill="#ddd6fe" 
+                      fillOpacity={0.3}
+                      name="Lower Bound"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Category Forecasts */}
+          {categoryForecast && categoryForecast.success && Object.keys(categoryForecast.forecasts).length > 0 && (
+            <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-200 mb-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-blue-500 to-cyan-500 p-2.5 rounded-xl">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900">Category Predictions</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Object.entries(categoryForecast.forecasts).map(([category, data]: [string, any]) => (
+                  <div key={category} className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-6 border border-slate-200 hover:shadow-lg transition-shadow">
+                    <h4 className="text-lg font-bold text-slate-900 mb-3">{category}</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-slate-600">Predicted:</span>
+                        <span className="font-bold text-slate-900">₹{data.predicted_total.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-slate-600">Daily Avg:</span>
+                        <span className="font-semibold text-slate-700">₹{data.daily_average.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        {data.trend === 'increasing' ? (
+                          <TrendingUp className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 text-green-500" />
+                        )}
+                        <span className={`text-sm font-medium ${data.trend === 'increasing' ? 'text-red-600' : 'text-green-600'}`}>
+                          {data.trend}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Smart Insights */}
+          {insights.length > 0 && (
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-8 shadow-2xl border-2 border-amber-200 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-amber-500 to-orange-500 p-2.5 rounded-xl">
+                    <Lightbulb className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-900">Smart Insights & Recommendations</h3>
+                </div>
+                {insights[0] && insights.length > 0 && (
+                  <div className="text-right">
+                    <p className="text-xs text-slate-600 mb-1">Potential Monthly Savings</p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      ₹{insights.reduce((sum: number, i: any) => sum + (i.savings_potential || 0), 0).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {insights.map((insight, index) => (
+                  <div key={index} className="bg-white rounded-2xl p-6 border border-amber-200 hover:shadow-lg transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="text-lg font-bold text-slate-900 flex-1">{insight.message}</h4>
+                      {insight.savings_potential && insight.savings_potential > 0 && (
+                        <div className="ml-3 px-3 py-1 bg-emerald-100 text-emerald-700 text-sm font-bold rounded-lg whitespace-nowrap">
+                          Save ₹{insight.savings_potential.toFixed(0)}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-slate-600 text-sm leading-relaxed mb-3">{insight.tip}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-lg">
+                        {insight.type.replace('_', ' ')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Anomalies Detection */}
+          {anomalies.length > 0 && (
+            <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-3xl p-8 shadow-2xl border-2 border-red-200 mb-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-red-500 to-pink-500 p-2.5 rounded-xl">
+                  <AlertCircle className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900">Unusual Spending Detected</h3>
+              </div>
+
+              <div className="space-y-4">
+                {anomalies.map((anomaly, index) => (
+                  <div key={index} className={`bg-white rounded-2xl p-6 border-2 ${anomaly.severity === 'high' ? 'border-red-300' : 'border-orange-300'} hover:shadow-lg transition-shadow`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-lg font-bold text-slate-900">₹{anomaly.amount.toFixed(2)}</p>
+                        <p className="text-sm text-slate-600">{anomaly.date}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-3 py-1 rounded-lg inline-block ${anomaly.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                          <span className="text-sm font-bold">{anomaly.deviation > 0 ? '+' : ''}{anomaly.deviation}%</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 capitalize">{anomaly.severity} severity</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
