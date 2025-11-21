@@ -1,16 +1,43 @@
 import pandas as pd
 import joblib
 import os
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from io import StringIO
 from prophet import Prophet
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+import secrets
 
 
 
 
 MODEL_PATH = '../models/prophet_model.pkl'
+
+# Pydantic models for auth
+class SignupRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    phone: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    remember: Optional[bool] = False
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+
+class AuthResponse(BaseModel):
+    user: UserResponse
+    token: str
+
+# In-memory user storage (replace with database in production)
+users_db = {}
 
 app = FastAPI()
 app.add_middleware(
@@ -53,6 +80,78 @@ def load_and_preprocess_data(file_path):
     data_grouped.rename(columns={'Date': 'ds', 'Amount': 'y'}, inplace=True)
 
     return data_grouped
+
+# Authentication endpoints
+@app.post("/api/auth/signup", response_model=AuthResponse, status_code=201)
+async def signup(request: SignupRequest):
+    """
+    Register a new user
+    TODO: Add password hashing, database storage, proper validation
+    """
+    # Check if user already exists
+    if request.email in users_db:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Email already exists", "errors": {"email": "This email is already registered"}}
+        )
+    
+    # Create user ID
+    user_id = secrets.token_urlsafe(16)
+    
+    # Store user (in production, hash password and use database)
+    users_db[request.email] = {
+        "id": user_id,
+        "name": request.name,
+        "email": request.email,
+        "password": request.password,  # TODO: Hash this!
+        "phone": request.phone
+    }
+    
+    # Generate token (in production, use JWT)
+    token = secrets.token_urlsafe(32)
+    
+    return AuthResponse(
+        user=UserResponse(
+            id=user_id,
+            name=request.name,
+            email=request.email
+        ),
+        token=token
+    )
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+async def login(request: LoginRequest):
+    """
+    Login existing user
+    TODO: Add password verification, JWT tokens
+    """
+    # Check if user exists
+    if request.email not in users_db:
+        raise HTTPException(
+            status_code=401,
+            detail={"message": "Invalid credentials"}
+        )
+    
+    user = users_db[request.email]
+    
+    # Verify password (in production, use proper password verification)
+    if user["password"] != request.password:
+        raise HTTPException(
+            status_code=401,
+            detail={"message": "Invalid credentials"}
+        )
+    
+    # Generate token (in production, use JWT)
+    token = secrets.token_urlsafe(32)
+    
+    return AuthResponse(
+        user=UserResponse(
+            id=user["id"],
+            name=user["name"],
+            email=user["email"]
+        ),
+        token=token
+    )
 
 # data = load_and_preprocess_data('../data/nwd.csv')
 
