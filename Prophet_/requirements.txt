@@ -9,3 +9,6 @@ python-multipart
 prophet
 email-validator
 bcrypt
+pytesseract
+Pillow
+python-dateutil

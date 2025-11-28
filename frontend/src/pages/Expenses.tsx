@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Calendar, Eye, Target, Sparkles, X, Plus, Wallet, ArrowUpRight, Receipt as ReceiptIcon, Search, Filter, Download, AlertTriangle } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import SmartBot from '../components/SmartBot';
 import { distributeBudget } from '../api/budgetApi';
 import { addExpense, getExpenseStats, setBudget, getBudget, ExpenseStats } from '../api/expenseApi';
 
@@ -21,8 +22,8 @@ interface BudgetResult {
 }
 
 export default function Expenses() {
-  // Get user from localStorage (from auth)
-  const userDataStr = localStorage.getItem('expense_user');
+  // Get user from sessionStorage (from auth) - tab-isolated
+  const userDataStr = sessionStorage.getItem('expense_user');
   const userData = userDataStr ? JSON.parse(userDataStr) : null;
   const userId = userData?.id || '1'; // Fallback to '1' for testing
   
@@ -34,9 +35,14 @@ export default function Expenses() {
   const [loading, setLoading] = useState(false);
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [budgetAmount, setBudgetAmount] = useState('');
   const [isUpdatingBudget, setIsUpdatingBudget] = useState(false);
   const [budgetMode, setBudgetMode] = useState<'set' | 'add'>('set'); // New: track mode
+  const [uploadedReceipt, setUploadedReceipt] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string>('');
+  const [extractedData, setExtractedData] = useState<any>(null);
+  const [isProcessingReceipt, setIsProcessingReceipt] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
     category: '',
     amount: '',
@@ -45,7 +51,7 @@ export default function Expenses() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [filterDateRange, setFilterDateRange] = useState('All');
+  const [filterDateRange, setFilterDateRange] = useState('Month');
 
   const categories = [
     'Food & Dining',
@@ -73,7 +79,7 @@ export default function Expenses() {
     } catch (error) {
       console.error('Failed to load stats:', error);
       // Set default stats
-      setStats({ today: 0, week: 0, month: 0, largest: 0, by_category: {} });
+      setStats({ today: 0, week: 0, month: 0, largest: 0, since_budget: 0, by_category: {} });
     }
   };
 
@@ -81,7 +87,18 @@ export default function Expenses() {
     try {
       const { getExpenses } = await import('../api/expenseApi');
       const expenses = await getExpenses(userId);
-      setRecentExpenses(expenses.slice(0, 10)); // Latest 10
+      console.log('Loaded expenses:', expenses);
+      
+      // Sort by created_at timestamp (when expense was added) for truly recent first
+      // If no created_at, fall back to date
+      const sortedExpenses = expenses.sort((a, b) => {
+        const timeA = (a as any).created_at ? new Date((a as any).created_at).getTime() : new Date(a.date).getTime();
+        const timeB = (b as any).created_at ? new Date((b as any).created_at).getTime() : new Date(b.date).getTime();
+        return timeB - timeA; // Most recently added first
+      }).slice(0, 50);
+      
+      console.log('Setting recent expenses (newest first):', sortedExpenses.length);
+      setRecentExpenses(sortedExpenses);
     } catch (error) {
       console.error('Failed to load expenses:', error);
       setRecentExpenses([]);
@@ -181,7 +198,8 @@ export default function Expenses() {
       });
 
       setBudgetData({
-        ...result,
+        budget_amount: finalBudgetAmount, // Set the correct updated budget amount
+        period: result.period,
         allocations: enrichedAllocations
       });
 
@@ -221,10 +239,94 @@ export default function Expenses() {
         date: new Date().toISOString().split('T')[0]
       });
       await loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add expense:', error);
-      alert('Failed to add expense. Please try again.');
+      
+      // Check if it's a budget exceeded error
+      const errorDetail = error?.response?.data?.detail;
+      
+      if (errorDetail?.budget_exceeded) {
+        // Budget exceeded - show detailed alert
+        const message = errorDetail.message || 
+          `Budget Exceeded!\n\n` +
+          `Budget: $${errorDetail.budget_amount?.toFixed(2) || 0}\n` +
+          `Already Spent: $${errorDetail.total_spent?.toFixed(2) || 0}\n` +
+          `Remaining: $${errorDetail.remaining?.toFixed(2) || 0}\n` +
+          `Attempted Expense: $${errorDetail.attempted_amount?.toFixed(2) || 0}\n\n` +
+          `This expense would exceed your budget by $${errorDetail.would_exceed_by?.toFixed(2) || 0}`;
+        
+        alert(message);
+      } else {
+        // Generic error
+        const errorMsg = errorDetail?.message || error?.message || 'Failed to add expense. Please try again.';
+        alert(errorMsg);
+      }
     }
+  };
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    setUploadedReceipt(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setReceiptPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Process receipt
+    await processReceipt(file);
+  };
+
+  const processReceipt = async (file: File) => {
+    setIsProcessingReceipt(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:8006/api/expenses/upload-receipt', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setExtractedData(result.data);
+        // Pre-fill expense form with extracted data
+        setExpenseForm({
+          category: result.data.category || '',
+          amount: result.data.amount?.toString() || '',
+          description: result.data.merchant || '',
+          date: result.data.date || new Date().toISOString().split('T')[0]
+        });
+      } else {
+        alert('Failed to extract data from receipt. Please enter manually.');
+      }
+    } catch (error) {
+      console.error('Failed to process receipt:', error);
+      alert('Failed to process receipt. Please try again or enter manually.');
+    } finally {
+      setIsProcessingReceipt(false);
+    }
+  };
+
+  const handleSaveReceiptExpense = async () => {
+    await handleAddExpense();
+    // Close receipt modal and reset state
+    setShowReceiptModal(false);
+    setUploadedReceipt(null);
+    setReceiptPreview('');
+    setExtractedData(null);
   };
 
   const getFilteredExpenses = () => {
@@ -342,7 +444,7 @@ export default function Expenses() {
   ];
 
   const totalBudget = budgetData?.budget_amount || 0;
-  const totalSpent = stats?.month || 0;
+  const totalSpent = stats?.since_budget || 0; // Use spending since budget was set
   const available = totalBudget - totalSpent;
   const emergencyFund = totalBudget * 0.1; // 10% as emergency
 
@@ -368,13 +470,22 @@ export default function Expenses() {
                 </p>
               </div>
             </div>
-            <button 
-              onClick={() => setShowExpenseModal(true)}
-              className="px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/30 flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Add Expense
-            </button>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowReceiptModal(true)}
+                className="px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-cyan-700 transition-all shadow-lg shadow-emerald-500/30 flex items-center gap-2"
+              >
+                <ReceiptIcon className="w-5 h-5" />
+                Scan Receipt
+              </button>
+              <button 
+                onClick={() => setShowExpenseModal(true)}
+                className="px-6 py-3.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/30 flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Add Expense
+              </button>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -395,6 +506,99 @@ export default function Expenses() {
               );
             })}
           </div>
+
+          {/* Budget Progress Bar */}
+          {budgetData && totalBudget > 0 && (
+            <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-slate-200 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-violet-500 to-purple-500 p-2.5 rounded-xl shadow-lg">
+                    <Target className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Monthly Budget Progress</h3>
+                    <p className="text-sm text-slate-600">
+                      ₹{totalSpent.toFixed(2)} of ₹{totalBudget.toFixed(2)} spent
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
+                    {((totalSpent / totalBudget) * 100).toFixed(0)}%
+                  </p>
+                  <p className="text-sm text-slate-600">Used</p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="relative">
+                <div className="w-full h-8 bg-slate-100 rounded-full overflow-hidden border-2 border-slate-200">
+                  <div
+                    className={`h-full transition-all duration-700 ease-out ${
+                      (totalSpent / totalBudget) * 100 >= 90
+                        ? 'bg-gradient-to-r from-red-500 to-red-600'
+                        : (totalSpent / totalBudget) * 100 >= 75
+                        ? 'bg-gradient-to-r from-orange-500 to-amber-500'
+                        : (totalSpent / totalBudget) * 100 >= 50
+                        ? 'bg-gradient-to-r from-yellow-500 to-orange-400'
+                        : 'bg-gradient-to-r from-emerald-500 to-green-500'
+                    } relative`}
+                    style={{ width: `${Math.min((totalSpent / totalBudget) * 100, 100)}%` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent"></div>
+                  </div>
+                </div>
+                
+                {/* Milestone markers */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-300"></div>
+                <div className="absolute top-10 left-1/2 -translate-x-1/2 text-xs text-slate-500 font-medium">50%</div>
+              </div>
+
+              {/* Budget Alert Banner */}
+              {(totalSpent / totalBudget) * 100 >= 85 && (
+                <div className={`mt-4 p-4 rounded-xl border-2 flex items-start gap-3 ${
+                  (totalSpent / totalBudget) * 100 >= 100
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-orange-50 border-orange-200'
+                }`}>
+                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    (totalSpent / totalBudget) * 100 >= 100 ? 'text-red-600' : 'text-orange-600'
+                  }`} />
+                  <div className="flex-1">
+                    <h4 className={`font-bold mb-1 ${
+                      (totalSpent / totalBudget) * 100 >= 100 ? 'text-red-900' : 'text-orange-900'
+                    }`}>
+                      {(totalSpent / totalBudget) * 100 >= 100 ? '🚨 Budget Exceeded!' : '⚠️ Budget Alert!'}
+                    </h4>
+                    <p className={`text-sm ${
+                      (totalSpent / totalBudget) * 100 >= 100 ? 'text-red-700' : 'text-orange-700'
+                    }`}>
+                      {(totalSpent / totalBudget) * 100 >= 100
+                        ? `You've exceeded your budget by ₹${(totalSpent - totalBudget).toFixed(2)}. Consider reviewing your expenses.`
+                        : `You've used ${((totalSpent / totalBudget) * 100).toFixed(0)}% of your budget. Only ₹${(totalBudget - totalSpent).toFixed(2)} remaining.`
+                      }
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Stats Row */}
+              <div className="grid grid-cols-3 gap-4 mt-6">
+                <div className="text-center p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-xs text-slate-600 font-medium mb-1">Spent</p>
+                  <p className="text-lg font-bold text-slate-900">₹{totalSpent.toFixed(0)}</p>
+                </div>
+                <div className="text-center p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  <p className="text-xs text-slate-600 font-medium mb-1">Remaining</p>
+                  <p className="text-lg font-bold text-emerald-600">₹{Math.max(0, totalBudget - totalSpent).toFixed(0)}</p>
+                </div>
+                <div className="text-center p-3 bg-violet-50 rounded-xl border border-violet-200">
+                  <p className="text-xs text-slate-600 font-medium mb-1">Budget</p>
+                  <p className="text-lg font-bold text-violet-600">₹{totalBudget.toFixed(0)}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Smart Budget Balance Section */}
           <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 mb-8 shadow-2xl border border-slate-700 relative overflow-hidden">
@@ -787,6 +991,173 @@ export default function Expenses() {
           </div>
         </div>
       )}
+
+      {/* Receipt Scanner Modal */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Scan Receipt</h3>
+                <p className="text-slate-600 text-sm mt-1">Upload or capture a receipt to extract expense details</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  setUploadedReceipt(null);
+                  setReceiptPreview('');
+                  setExtractedData(null);
+                }} 
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-xl transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {!receiptPreview ? (
+              <div className="space-y-4">
+                <label 
+                  htmlFor="receipt-upload"
+                  className="block border-3 border-dashed border-slate-300 rounded-2xl p-12 text-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 transition-all"
+                >
+                  <ReceiptIcon className="w-16 h-16 mx-auto text-slate-400 mb-4" />
+                  <p className="text-lg font-semibold text-slate-700 mb-2">Upload Receipt Image</p>
+                  <p className="text-sm text-slate-500">Click to browse or drag and drop</p>
+                  <p className="text-xs text-slate-400 mt-2">Supports JPG, PNG (Max 10MB)</p>
+                </label>
+                <input
+                  id="receipt-upload"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleReceiptUpload}
+                  className="hidden"
+                />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Receipt Preview */}
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Receipt Preview</p>
+                  <img 
+                    src={receiptPreview} 
+                    alt="Receipt" 
+                    className="w-full h-64 object-contain rounded-xl border-2 border-slate-200"
+                  />
+                  <button
+                    onClick={() => {
+                      setUploadedReceipt(null);
+                      setReceiptPreview('');
+                      setExtractedData(null);
+                    }}
+                    className="mt-3 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    Upload Different Image
+                  </button>
+                </div>
+
+                {/* Processing Indicator */}
+                {isProcessingReceipt && (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 text-center">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+                    <p className="text-sm font-semibold text-blue-700">Processing receipt...</p>
+                    <p className="text-xs text-blue-600 mt-1">Extracting expense details</p>
+                  </div>
+                )}
+
+                {/* Extracted Data Form */}
+                {extractedData && !isProcessingReceipt && (
+                  <div className="space-y-4">
+                    <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-5 h-5 text-emerald-600" />
+                        <p className="text-sm font-semibold text-emerald-800">Data Extracted Successfully</p>
+                      </div>
+                      <p className="text-xs text-emerald-700">
+                        Confidence: <span className="font-bold">{extractedData.confidence}</span>
+                        {extractedData.merchant && ` • Merchant: ${extractedData.merchant}`}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-2xl p-5 space-y-4">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Review & Edit Details</p>
+                      
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Category *</label>
+                        <select
+                          value={expenseForm.category}
+                          onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
+                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+                        >
+                          <option value="">Select Category</option>
+                          {categories.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Amount (₹) *</label>
+                        <input
+                          type="number"
+                          value={expenseForm.amount}
+                          onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
+                        <input
+                          type="text"
+                          value={expenseForm.description}
+                          onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
+                        <input
+                          type="date"
+                          value={expenseForm.date}
+                          onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                          className="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      {extractedData.items && extractedData.items.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Items on Receipt</label>
+                          <div className="bg-white rounded-xl border-2 border-slate-200 p-3 max-h-32 overflow-y-auto">
+                            {extractedData.items.map((item: any, idx: number) => (
+                              <div key={idx} className="flex justify-between text-sm py-1">
+                                <span className="text-slate-700">{item.item}</span>
+                                <span className="text-slate-900 font-semibold">₹{item.price}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleSaveReceiptExpense}
+                      disabled={!expenseForm.category || !expenseForm.amount}
+                      className="w-full px-6 py-4 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-cyan-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Save Expense
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Smart Bot Assistant */}
+      <SmartBot stats={stats} expenses={recentExpenses} budget={budgetData} />
     </div>
   );
 }

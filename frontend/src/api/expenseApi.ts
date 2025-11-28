@@ -16,6 +16,7 @@ export interface ExpenseStats {
   week: number;
   month: number;
   largest: number;
+  since_budget: number;
   by_category: Record<string, number>;
 }
 

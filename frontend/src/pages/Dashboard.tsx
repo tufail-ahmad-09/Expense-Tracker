@@ -7,11 +7,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, TrendingUp, Zap, Upload, Clock, BarChart3 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import SmartBot from '../components/SmartBot';
 import FileUploader from '../components/FileUploader';
 import ResultsPanel from '../components/ResultsPanel';
 import InfoPanel from '../components/InfoPanel';
 import { uploadCSV } from '../api/forecastApi';
-import { getAuthToken } from '../utils/auth';
+import { getAuthToken, getUserData } from '../utils/auth';
 import { Prediction, AppStatus } from '../types';
 
 export const Dashboard: React.FC = () => {
@@ -19,6 +20,10 @@ export const Dashboard: React.FC = () => {
   const [status, setStatus] = useState<AppStatus>('idle');
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Get current user data
+  const userData = getUserData();
+  const userId = userData?.id;
 
   // Check if user is authenticated
   React.useEffect(() => {
@@ -32,7 +37,8 @@ export const Dashboard: React.FC = () => {
     setError(null);
     
     try {
-      const response = await uploadCSV(file);
+      // Pass userId to uploadCSV so the model is saved for this user
+      const response = await uploadCSV(file, userId);
       setPredictions(response.predictions);
       setStatus('success');
     } catch (err) {
@@ -158,6 +164,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </main>
+      
+      {/* Smart Bot Assistant */}
+      <SmartBot />
     </div>
   );
 };

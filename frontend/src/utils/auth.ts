@@ -54,25 +54,25 @@ export interface ApiError {
 }
 
 /**
- * Store auth token in localStorage
+ * Store auth token in sessionStorage (tab-isolated)
  * TODO: If using httpOnly cookies, remove this function
  */
 export const setAuthToken = (token: string): void => {
-  localStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(TOKEN_KEY, token);
 };
 
 /**
- * Store user data in localStorage
+ * Store user data in sessionStorage (tab-isolated)
  */
 export const setUserData = (user: AuthUser): void => {
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
 };
 
 /**
- * Get user data from localStorage
+ * Get user data from sessionStorage
  */
 export const getUserData = (): AuthUser | null => {
-  const userData = localStorage.getItem(USER_KEY);
+  const userData = sessionStorage.getItem(USER_KEY);
   if (userData) {
     try {
       return JSON.parse(userData);
@@ -84,19 +84,19 @@ export const getUserData = (): AuthUser | null => {
 };
 
 /**
- * Retrieve auth token from localStorage
+ * Retrieve auth token from sessionStorage
  * TODO: If using httpOnly cookies, modify to check cookie existence
  */
 export const getAuthToken = (): string | null => {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 };
 
 /**
  * Remove auth token (logout)
  */
 export const removeAuthToken = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
 };
 
 /**

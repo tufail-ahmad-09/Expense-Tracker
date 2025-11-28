@@ -28,7 +28,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     // Get user info from localStorage
-    const userDataStr = localStorage.getItem('expense_user');
+    const userDataStr = sessionStorage.getItem('expense_user');
     console.log('User data from localStorage:', userDataStr); // Debug log
     if (userDataStr) {
       try {

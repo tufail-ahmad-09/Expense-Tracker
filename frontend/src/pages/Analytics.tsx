@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { TrendingUp, DollarSign, Download, Calendar, BarChart3, Zap, AlertCircle, Lightbulb, TrendingDown } from 'lucide-react';
+import { TrendingUp, DollarSign, Download, Calendar, BarChart3, Zap, AlertCircle, Lightbulb, TrendingDown, Bell, X } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import SmartBot from '../components/SmartBot';
 import { getExpenses, getExpenseStats } from '../api/expenseApi';
 import { getSpendingForecast, getCategoryForecast, getAnomalies, getTrends } from '../api/forecastApi';
 
 export default function Analytics() {
-  const userId = localStorage.getItem('expense_user') ? JSON.parse(localStorage.getItem('expense_user')!).id || '1' : '1';
+  const userId = sessionStorage.getItem('expense_user') ? JSON.parse(sessionStorage.getItem('expense_user')!).id || '1' : '1';
   
   const [expenses, setExpenses] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -21,6 +22,10 @@ export default function Analytics() {
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [insights, setInsights] = useState<any[]>([]);
   const [forecastDays, setForecastDays] = useState(30);
+  
+  // Notification states
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const COLORS = ['#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#84cc16'];
 
@@ -28,6 +33,11 @@ export default function Analytics() {
     loadAnalyticsData();
     loadPredictions();
   }, [forecastDays]);
+  
+  useEffect(() => {
+    // Update unread count when insights change
+    setUnreadCount(insights.length);
+  }, [insights]);
 
   const loadAnalyticsData = async () => {
     try {
@@ -186,13 +196,27 @@ export default function Analytics() {
                 <p className="text-slate-600 mt-1">Visualize your spending patterns</p>
               </div>
             </div>
-            <button
-              onClick={exportToCSV}
-              className="px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/30 flex items-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Export CSV
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative px-4 py-3.5 bg-white border-2 border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-lg flex items-center gap-2"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={exportToCSV}
+                className="px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/30 flex items-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Export CSV
+              </button>
+            </div>
           </div>
 
           {/* Summary Cards */}
@@ -330,59 +354,136 @@ export default function Analytics() {
             )}
           </div>
 
-          {/* Prophet AI Predictions Section */}
+          {/* 🔮 FUTURE SPENDING PREDICTION SECTION */}
           {forecast && forecast.success && (
-            <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-3xl p-8 shadow-2xl border-2 border-violet-200 mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-violet-600 to-purple-600 p-2.5 rounded-xl">
-                    <Zap className="w-6 h-6 text-white" />
+            <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-3xl p-8 shadow-2xl border-2 border-purple-300 mb-8 relative overflow-hidden">
+              {/* Decorative background elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-300/20 to-transparent rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-indigo-300/20 to-transparent rounded-full blur-3xl"></div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-gradient-to-br from-purple-600 via-violet-600 to-indigo-600 p-3 rounded-2xl shadow-lg shadow-purple-500/50 animate-pulse">
+                      <Zap className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent">
+                          🔮 Future Spending Prediction
+                        </h3>
+                      </div>
+                      <p className="text-slate-600 font-medium mt-1">AI-powered forecast using Prophet ML</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-900">Prophet AI Forecast</h3>
-                    <p className="text-slate-600">Next {forecastDays} days spending prediction</p>
-                  </div>
+                  <select
+                    value={forecastDays}
+                    onChange={(e) => setForecastDays(Number(e.target.value))}
+                    className="px-5 py-3 bg-white border-2 border-purple-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:border-purple-500 hover:bg-purple-50 transition-all shadow-lg"
+                  >
+                    <option value={7}>Next 7 Days</option>
+                    <option value={14}>Next 14 Days</option>
+                    <option value={30}>Next Month</option>
+                    <option value={60}>Next 2 Months</option>
+                  </select>
                 </div>
-                <select
-                  value={forecastDays}
-                  onChange={(e) => setForecastDays(Number(e.target.value))}
-                  className="px-4 py-2 bg-white border-2 border-violet-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:border-violet-500"
-                >
-                  <option value={7}>7 Days</option>
-                  <option value={14}>14 Days</option>
-                  <option value={30}>30 Days</option>
-                  <option value={60}>60 Days</option>
-                </select>
-              </div>
 
-              {/* Forecast Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
-                  <p className="text-sm font-medium text-slate-600 mb-2">Predicted Total</p>
-                  <p className="text-3xl font-bold text-violet-600">₹{forecast.summary.total_predicted.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500 mt-1">For next {forecastDays} days</p>
-                </div>
-                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
-                  <p className="text-sm font-medium text-slate-600 mb-2">Daily Average</p>
-                  <p className="text-3xl font-bold text-purple-600">₹{forecast.summary.daily_average.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500 mt-1">Expected per day</p>
-                </div>
-                <div className="bg-white rounded-2xl p-6 shadow-lg border border-violet-200">
-                  <p className="text-sm font-medium text-slate-600 mb-2">Confidence</p>
-                  <p className="text-3xl font-bold text-emerald-600 capitalize">{forecast.summary.confidence}</p>
-                  <p className="text-xs text-slate-500 mt-1">Prediction accuracy</p>
+                {/* Enhanced Forecast Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-purple-200 hover:shadow-2xl hover:scale-105 transition-all">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <TrendingUp className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-600">Expected Total</p>
+                    </div>
+                    <p className="text-4xl font-bold text-purple-600 mb-1">₹{forecast.summary.total_predicted.toFixed(2)}</p>
+                    <p className="text-sm text-slate-500">Next {forecastDays} days</p>
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <p className="text-xs text-slate-600">
+                        {forecast.summary.total_predicted > (stats?.month || 0) ? (
+                          <span className="text-orange-600 font-semibold">⚠️ Higher than last month</span>
+                        ) : (
+                          <span className="text-green-600 font-semibold">✓ Lower than last month</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-indigo-200 hover:shadow-2xl hover:scale-105 transition-all">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Calendar className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-600">Daily Average</p>
+                    </div>
+                    <p className="text-4xl font-bold text-indigo-600 mb-1">₹{forecast.summary.daily_average.toFixed(2)}</p>
+                    <p className="text-sm text-slate-500">Per day estimate</p>
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <p className="text-xs text-slate-600">
+                        Tomorrow: <span className="font-bold text-indigo-700">₹{forecast.forecast[0]?.predicted.toFixed(2) || 0}</span>
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-emerald-200 hover:shadow-2xl hover:scale-105 transition-all">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <BarChart3 className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-600">Confidence Level</p>
+                    </div>
+                    <p className="text-4xl font-bold text-emerald-600 mb-1 capitalize">{forecast.summary.confidence}</p>
+                    <p className="text-sm text-slate-500">Prediction accuracy</p>
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-emerald-500 to-green-500 h-2 rounded-full transition-all"
+                            style={{ width: forecast.summary.confidence === 'high' ? '90%' : forecast.summary.confidence === 'medium' ? '70%' : '50%' }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600">
+                          {forecast.summary.confidence === 'high' ? '90%' : forecast.summary.confidence === 'medium' ? '70%' : '50%'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Forecast Chart */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h4 className="text-lg font-bold text-slate-900 mb-4">Daily Forecast with Confidence Interval</h4>
+              {/* Enhanced Forecast Chart */}
+              <div className="bg-white rounded-2xl p-6 shadow-xl border-2 border-purple-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xl font-bold text-slate-900">📈 Daily Spending Forecast</h4>
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-purple-600 rounded"></div>
+                      <span className="text-slate-600 font-medium">Predicted</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-purple-200 rounded"></div>
+                      <span className="text-slate-600 font-medium">Range</span>
+                    </div>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={350}>
                   <AreaChart data={forecast.forecast}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        return `${date.getMonth() + 1}/${date.getDate()}`;
+                      }}
+                    />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: any) => `₹${value.toFixed(2)}`} />
+                    <Tooltip 
+                      formatter={(value: any) => `₹${value.toFixed(2)}`}
+                      contentStyle={{ backgroundColor: 'white', border: '2px solid #a78bfa', borderRadius: '12px' }}
+                    />
                     <Legend />
                     <Area 
                       type="monotone" 
@@ -413,41 +514,82 @@ export default function Analytics() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                
+                {/* Quick Insights Below Chart */}
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-purple-50 rounded-xl border border-purple-200">
+                    <p className="text-xs text-slate-600 mb-1 font-medium">Peak Day</p>
+                    <p className="text-lg font-bold text-purple-600">
+                      ₹{Math.max(...forecast.forecast.map((f: any) => f.predicted)).toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                    <p className="text-xs text-slate-600 mb-1 font-medium">Lowest Day</p>
+                    <p className="text-lg font-bold text-indigo-600">
+                      ₹{Math.min(...forecast.forecast.map((f: any) => f.predicted)).toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <p className="text-xs text-slate-600 mb-1 font-medium">First Week</p>
+                    <p className="text-lg font-bold text-emerald-600">
+                      ₹{forecast.forecast.slice(0, 7).reduce((sum: number, f: any) => sum + f.predicted, 0).toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-xs text-slate-600 mb-1 font-medium">Trend</p>
+                    <p className="text-lg font-bold text-amber-600 flex items-center justify-center gap-1">
+                      {forecast.forecast[forecast.forecast.length - 1]?.predicted > forecast.forecast[0]?.predicted ? (
+                        <><TrendingUp className="w-4 h-4" /> Up</>
+                      ) : (
+                        <><TrendingDown className="w-4 h-4" /> Down</>
+                      )}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Category Forecasts */}
+          {/* Category-wise Future Spending */}
           {categoryForecast && categoryForecast.success && Object.keys(categoryForecast.forecasts).length > 0 && (
-            <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-200 mb-8">
+            <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-3xl p-8 shadow-2xl border-2 border-cyan-200 mb-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-cyan-500 p-2.5 rounded-xl">
+                <div className="bg-gradient-to-br from-cyan-500 to-blue-500 p-2.5 rounded-xl shadow-lg">
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900">Category Predictions</h3>
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-900">📊 Category-wise Predictions</h3>
+                  <p className="text-slate-600 text-sm">Future spending breakdown by category</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {Object.entries(categoryForecast.forecasts).map(([category, data]: [string, any]) => (
-                  <div key={category} className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-6 border border-slate-200 hover:shadow-lg transition-shadow">
-                    <h4 className="text-lg font-bold text-slate-900 mb-3">{category}</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-600">Predicted:</span>
-                        <span className="font-bold text-slate-900">₹{data.predicted_total.toFixed(2)}</span>
+                  <div key={category} className="bg-white rounded-2xl p-6 border-2 border-cyan-200 hover:shadow-xl hover:scale-105 transition-all">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-bold text-slate-900">{category}</h4>
+                      {data.trend === 'increasing' ? (
+                        <div className="p-2 bg-red-100 rounded-lg">
+                          <TrendingUp className="w-4 h-4 text-red-600" />
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <TrendingDown className="w-4 h-4 text-green-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-slate-600 font-medium">Expected Total:</span>
+                        <span className="font-bold text-cyan-600 text-lg">₹{data.predicted_total.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-600">Daily Avg:</span>
+                      <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                        <span className="text-sm text-slate-600 font-medium">Daily Average:</span>
                         <span className="font-semibold text-slate-700">₹{data.daily_average.toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-2 pt-2">
-                        {data.trend === 'increasing' ? (
-                          <TrendingUp className="w-4 h-4 text-red-500" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 text-green-500" />
-                        )}
-                        <span className={`text-sm font-medium ${data.trend === 'increasing' ? 'text-red-600' : 'text-green-600'}`}>
-                          {data.trend}
+                      <div className="flex items-center justify-between pt-2">
+                        <span className={`text-sm font-bold px-3 py-1 rounded-full ${data.trend === 'increasing' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                          {data.trend === 'increasing' ? '↑ Rising' : '↓ Falling'}
                         </span>
                       </div>
                     </div>
@@ -532,6 +674,117 @@ export default function Analytics() {
           )}
         </div>
       </main>
+
+      {/* Notification Panel */}
+      {showNotifications && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+            onClick={() => setShowNotifications(false)}
+          />
+          
+          {/* Notification Sidebar */}
+          <div className="fixed right-0 top-0 h-full w-full md:w-[480px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-cyan-600 p-6 shadow-lg z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Smart Insights</h2>
+                  <p className="text-blue-100 text-sm mt-1">{insights.length} recommendations available</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNotifications(false);
+                    setUnreadCount(0);
+                  }}
+                  className="text-white hover:bg-white/20 p-2 rounded-xl transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {insights.length === 0 ? (
+                <div className="text-center py-16">
+                  <Lightbulb className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600 font-medium">No insights available</p>
+                  <p className="text-sm text-slate-500 mt-2">Add more expenses to get personalized recommendations</p>
+                </div>
+              ) : (
+                insights.map((insight, index) => (
+                  <div 
+                    key={index}
+                    className="bg-gradient-to-br from-white to-slate-50 rounded-2xl p-6 border-2 border-slate-200 hover:border-blue-300 hover:shadow-xl transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`p-3 rounded-xl ${
+                        insight.type === 'weekend_spending' ? 'bg-purple-100' :
+                        insight.type === 'best_shopping_day' ? 'bg-emerald-100' :
+                        insight.type === 'category_optimization' ? 'bg-blue-100' :
+                        insight.type === 'spending_momentum' ? 'bg-orange-100' :
+                        insight.type === 'large_purchases' ? 'bg-red-100' :
+                        insight.type === 'budget_reallocation' ? 'bg-cyan-100' :
+                        'bg-amber-100'
+                      }`}>
+                        {insight.type === 'weekend_spending' ? <Calendar className="w-6 h-6 text-purple-600" /> :
+                         insight.type === 'best_shopping_day' ? <TrendingDown className="w-6 h-6 text-emerald-600" /> :
+                         insight.type === 'category_optimization' ? <BarChart3 className="w-6 h-6 text-blue-600" /> :
+                         insight.type === 'spending_momentum' ? <TrendingUp className="w-6 h-6 text-orange-600" /> :
+                         insight.type === 'large_purchases' ? <AlertCircle className="w-6 h-6 text-red-600" /> :
+                         insight.type === 'budget_reallocation' ? <DollarSign className="w-6 h-6 text-cyan-600" /> :
+                         <Lightbulb className="w-6 h-6 text-amber-600" />}
+                      </div>
+                      
+                      <div className="flex-1">
+                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-blue-600 transition-colors">
+                          {insight.title}
+                        </h3>
+                        <p className="text-slate-600 text-sm mb-3 leading-relaxed">
+                          {insight.message}
+                        </p>
+                        
+                        {insight.savings_potential && insight.savings_potential > 0 && (
+                          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mt-3">
+                            <Zap className="w-4 h-4 text-emerald-600" />
+                            <span className="text-sm font-semibold text-emerald-700">
+                              Potential Savings: ₹{insight.savings_potential.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {insight.category && (
+                          <div className="mt-3">
+                            <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-full">
+                              {insight.category}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {insights.length > 0 && (
+                <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 border-2 border-emerald-200 rounded-2xl p-6 mt-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Zap className="w-6 h-6 text-emerald-600" />
+                    <h3 className="text-lg font-bold text-slate-900">Total Monthly Savings Potential</h3>
+                  </div>
+                  <p className="text-3xl font-bold text-emerald-600">
+                    ₹{insights.reduce((sum, insight) => sum + (insight.savings_potential || 0), 0).toFixed(2)}
+                  </p>
+                  <p className="text-sm text-slate-600 mt-2">Follow these recommendations to save more</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      
+      {/* Smart Bot Assistant */}
+      <SmartBot stats={stats} expenses={expenses} />
     </div>
   );
 }

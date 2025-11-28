@@ -7,13 +7,19 @@ const API_URL=import.meta.env.VITE_API_URL;
 /**
  * Uploads a CSV file to the forecasting API and returns predictions
  */
-export const uploadCSV = async (file: File): Promise<PredictionResponse> => {
+export const uploadCSV = async (file: File, userId?: string): Promise<PredictionResponse> => {
   const formData = new FormData();
   formData.append('file', file);
 
+  // Build URL with user_id query parameter if provided
+  let url = `${API_URL}/upload_csv`;
+  if (userId) {
+    url += `?user_id=${userId}`;
+  }
+
   try {
     const response = await axios.post<PredictionResponse>(
-      `${API_URL}/upload_csv`,
+      url,
       formData,
       {
         headers: {
